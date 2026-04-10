@@ -5,7 +5,6 @@ from __future__ import annotations
 from nectomax_qbo.payments import build_payment
 from nectomax_qbo.types import AccountRef
 
-
 CUST = AccountRef("50", "Residential Carpet Sales")
 DEPOSIT = AccountRef("8", "Fifth Third Business Checking")
 

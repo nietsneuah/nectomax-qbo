@@ -5,12 +5,11 @@ from __future__ import annotations
 from nectomax_qbo.cash_routing import PaymentLink, route_cash_payment
 from nectomax_qbo.types import AccountRef
 
-
 PETTY_CASH = AccountRef(value="100", name="Petty Cash (Carpet)")
 PTD = AccountRef(value="200", name="Payments to deposit")
 
 
-class TestCase0_NoPettyCash:
+class TestCaseNoPettyCash:
     def test_routes_all_to_ptd(self) -> None:
         links = [PaymentLink("Cash", 100.0)]
         result = route_cash_payment(links, 100.0, None, PTD)
@@ -19,7 +18,7 @@ class TestCase0_NoPettyCash:
         assert result.warning is not None
 
 
-class TestCaseA_PureCash:
+class TestCasePureCash:
     def test_routes_to_petty_cash(self) -> None:
         links = [PaymentLink("Cash", 150.0)]
         result = route_cash_payment(links, 150.0, PETTY_CASH, PTD)
@@ -35,7 +34,7 @@ class TestCaseA_PureCash:
         assert result.lines[0].account_ref == PETTY_CASH
 
 
-class TestCaseA2_PureNonCash:
+class TestCasePureNonCash:
     def test_credit_card(self) -> None:
         links = [PaymentLink("Credit Card", 200.0)]
         result = route_cash_payment(links, 200.0, PETTY_CASH, PTD)
@@ -54,7 +53,7 @@ class TestCaseA2_PureNonCash:
         assert result.lines[0].account_ref == PTD
 
 
-class TestCaseB_SingleTypeNegAdjustment:
+class TestCaseSingleTypeNegAdjustment:
     def test_cash_with_negative_adjustment(self) -> None:
         links = [PaymentLink("Cash", 100.0), PaymentLink("Adjustment", -10.0)]
         result = route_cash_payment(links, 90.0, PETTY_CASH, PTD)
@@ -73,7 +72,7 @@ class TestCaseB_SingleTypeNegAdjustment:
         assert result.warning is not None  # Fallback
 
 
-class TestCaseC_MultiTypeNegAdjustment:
+class TestCaseMultiTypeNegAdjustment:
     def test_fallback(self) -> None:
         links = [
             PaymentLink("Cash", 50.0),
@@ -87,7 +86,7 @@ class TestCaseC_MultiTypeNegAdjustment:
         assert "Multiple payment types" in result.warning["reason"]
 
 
-class TestCaseD_SmallPosAdjustment:
+class TestCaseSmallPosAdjustment:
     def test_inflates_ptd_bucket(self) -> None:
         links = [
             PaymentLink("Credit Card", 95.0),
@@ -99,7 +98,7 @@ class TestCaseD_SmallPosAdjustment:
         assert result.warning is None
 
 
-class TestCaseE_LargePosAdjustment:
+class TestCaseLargePosAdjustment:
     def test_fallback(self) -> None:
         links = [
             PaymentLink("Cash", 50.0),
@@ -110,7 +109,7 @@ class TestCaseE_LargePosAdjustment:
         assert "ceiling" in result.warning["reason"]
 
 
-class TestCaseF_MixedAdjustments:
+class TestCaseMixedAdjustments:
     def test_fallback(self) -> None:
         links = [
             PaymentLink("Cash", 100.0),
@@ -127,8 +126,8 @@ class TestMixedCashAndOther:
         links = [PaymentLink("Cash", 30.0), PaymentLink("Credit Card", 70.0)]
         result = route_cash_payment(links, 100.0, PETTY_CASH, PTD)
         assert len(result.lines) == 2
-        cash_line = [l for l in result.lines if l.account_ref == PETTY_CASH]
-        other_line = [l for l in result.lines if l.account_ref == PTD]
+        cash_line = [ln for ln in result.lines if ln.account_ref == PETTY_CASH]
+        other_line = [ln for ln in result.lines if ln.account_ref == PTD]
         assert len(cash_line) == 1
         assert cash_line[0].amount == 30.0
         assert len(other_line) == 1

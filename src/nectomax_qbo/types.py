@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 
-class QbEnvironment(str, Enum):
+class QbEnvironment(StrEnum):
     SANDBOX = "sandbox"
     PRODUCTION = "production"
 
@@ -69,7 +69,7 @@ class CashRoutingResult:
     warning: dict | None = None
 
 
-class JeType(str, Enum):
+class JeType(StrEnum):
     WC = "WC"
     PAY = "PAY"
     BATCH = "BATCH"

@@ -125,7 +125,8 @@ class TestQueryQboMaxDocNumber:
 class TestReserveNextDocNumber:
     @pytest.mark.asyncio
     async def test_reserve(self, creds: QbCredentials) -> None:
-        with patch("nectomax_qbo.doc_numbers.query_qbo_max_doc_number", new_callable=AsyncMock) as mock_max:
+        target = "nectomax_qbo.doc_numbers.query_qbo_max_doc_number"
+        with patch(target, new_callable=AsyncMock) as mock_max:
             mock_max.return_value = 105
             doc_num, next_seq = await reserve_next_doc_number(creds, state_number=100)
 
@@ -134,7 +135,8 @@ class TestReserveNextDocNumber:
 
     @pytest.mark.asyncio
     async def test_reserve_state_higher(self, creds: QbCredentials) -> None:
-        with patch("nectomax_qbo.doc_numbers.query_qbo_max_doc_number", new_callable=AsyncMock) as mock_max:
+        target = "nectomax_qbo.doc_numbers.query_qbo_max_doc_number"
+        with patch(target, new_callable=AsyncMock) as mock_max:
             mock_max.return_value = 50
             doc_num, next_seq = await reserve_next_doc_number(creds, state_number=200)
 

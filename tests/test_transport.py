@@ -17,7 +17,9 @@ from nectomax_qbo.transport import (
 from nectomax_qbo.types import QbCredentials, QbEnvironment
 
 
-def _mock_response(status_code: int = 200, json_data: dict | None = None, text: str = "") -> MagicMock:
+def _mock_response(
+    status_code: int = 200, json_data: dict | None = None, text: str = "",
+) -> MagicMock:
     """Create a mock httpx response with sync .json() and .text."""
     resp = MagicMock()
     resp.status_code = status_code
@@ -153,7 +155,8 @@ class TestQbRequest:
 
     @pytest.mark.asyncio
     async def test_610_retries(self, creds: QbCredentials) -> None:
-        resp_610 = _mock_response(200, {"Fault": {"Error": [{"code": "610", "Detail": "Throttled"}]}})
+        fault_data = {"Fault": {"Error": [{"code": "610", "Detail": "Throttled"}]}}
+        resp_610 = _mock_response(200, fault_data)
         resp_ok = _mock_response(200, {"JournalEntry": {"Id": "99"}})
         cls, client = _mock_client()
         client.request = AsyncMock(side_effect=[resp_610, resp_ok])
@@ -166,7 +169,8 @@ class TestQbRequest:
 
     @pytest.mark.asyncio
     async def test_non_retriable_fault(self, creds: QbCredentials) -> None:
-        resp = _mock_response(400, {"Fault": {"Error": [{"code": "6000", "Detail": "Validation error"}]}})
+        fault_data = {"Fault": {"Error": [{"code": "6000", "Detail": "Validation error"}]}}
+        resp = _mock_response(400, fault_data)
         cls, client = _mock_client()
         client.request = AsyncMock(return_value=resp)
 

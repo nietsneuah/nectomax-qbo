@@ -138,7 +138,6 @@ async def qb_request(
             errors = fault.get("Error", [])
             err = errors[0] if errors else {}
             code = err.get("code", "")
-            detail = err.get("Detail", err.get("Message", "Unknown error"))
 
             # 610 — throttled, retry
             if code == "610" and attempt < max_retries:

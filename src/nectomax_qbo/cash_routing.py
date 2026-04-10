@@ -64,8 +64,8 @@ def route_cash_payment(
         )
 
     # Partition: adjustments vs real payments
-    adjustments = [l for l in payment_links if l.payment_type == "Adjustment"]
-    payments = [l for l in payment_links if l.payment_type != "Adjustment"]
+    adjustments = [pl for pl in payment_links if pl.payment_type == "Adjustment"]
+    payments = [pl for pl in payment_links if pl.payment_type != "Adjustment"]
 
     # Sum by type
     type_totals: dict[str, float] = {}
@@ -83,7 +83,8 @@ def route_cash_payment(
     # Case E: Large positive adjustment
     if pos_adj_total > SMALL_ADJUSTMENT_CEILING:
         return _fallback(invoice_amount, payments_to_deposit_ref,
-                         f"Positive adjustment ${pos_adj_total:.2f} exceeds ${SMALL_ADJUSTMENT_CEILING:.2f} ceiling")
+                         f"Positive adjustment ${pos_adj_total:.2f} "
+                         f"exceeds ${SMALL_ADJUSTMENT_CEILING:.2f} ceiling")
 
     payment_types = [t for t in type_totals if t not in ("NONE", "Adjustment")]
 
@@ -102,7 +103,9 @@ def route_cash_payment(
         ref = petty_cash_ref if ptype == "Cash" else payments_to_deposit_ref
         desc = "Cash at plant → Petty Cash" if ptype == "Cash" else "Payment"
         return CashRoutingResult(
-            lines=[CashRoutingLine(description=desc, amount=_round(abs(invoice_amount)), account_ref=ref)],
+            lines=[CashRoutingLine(
+                description=desc, amount=_round(abs(invoice_amount)), account_ref=ref,
+            )],
         )
 
     # Case D: Small positive adjustment → inflate PTD bucket
