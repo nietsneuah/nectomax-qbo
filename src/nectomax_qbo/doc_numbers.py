@@ -16,7 +16,7 @@ def parse_doc_number(doc_number: str, prefix: str = "WS") -> int | None:
     expected = f"{prefix}-"
     if not doc_number.startswith(expected):
         return None
-    digits = doc_number[len(expected):]
+    digits = doc_number[len(expected) :]
     if not digits.isdigit():
         return None
     return int(digits)

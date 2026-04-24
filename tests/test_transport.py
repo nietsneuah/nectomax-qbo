@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from nectomax_qbo import transport as transport_mod
 from nectomax_qbo.transport import (
     QbAuthError,
     _api_url,
@@ -17,8 +18,26 @@ from nectomax_qbo.transport import (
 from nectomax_qbo.types import QbCredentials, QbEnvironment
 
 
+@pytest.fixture(autouse=True)
+def _reset_transport_module_state() -> None:
+    """Clear per-process refresh locks + coalesce cache between tests.
+
+    Without this, a successful refresh in one test populates
+    ``_recent_refreshes`` for the fixture's ``(client_id, realm_id)`` key,
+    causing the next test that reuses the fixture to short-circuit on the
+    coalesce path and never exercise its mocked HTTP response.
+    """
+    transport_mod._refresh_locks.clear()
+    transport_mod._recent_refreshes.clear()
+    yield
+    transport_mod._refresh_locks.clear()
+    transport_mod._recent_refreshes.clear()
+
+
 def _mock_response(
-    status_code: int = 200, json_data: dict | None = None, text: str = "",
+    status_code: int = 200,
+    json_data: dict | None = None,
+    text: str = "",
 ) -> MagicMock:
     """Create a mock httpx response with sync .json() and .text."""
     resp = MagicMock()
@@ -90,12 +109,15 @@ class TestHeaders:
 class TestRefreshTokens:
     @pytest.mark.asyncio
     async def test_successful_refresh(self, creds: QbCredentials) -> None:
-        resp = _mock_response(200, {
-            "access_token": "new_access",
-            "refresh_token": "new_refresh",
-            "expires_in": 3600,
-            "x_refresh_token_expires_in": 8726400,
-        })
+        resp = _mock_response(
+            200,
+            {
+                "access_token": "new_access",
+                "refresh_token": "new_refresh",
+                "expires_in": 3600,
+                "x_refresh_token_expires_in": 8726400,
+            },
+        )
         cls, client = _mock_client()
         client.post = AsyncMock(return_value=resp)
 
@@ -115,6 +137,34 @@ class TestRefreshTokens:
         with patch("nectomax_qbo.transport.httpx.AsyncClient", cls):
             with pytest.raises(QbAuthError, match="Token refresh failed"):
                 await refresh_tokens(creds)
+
+    @pytest.mark.asyncio
+    async def test_coalesce_returns_cached_on_sibling_refresh(self, creds: QbCredentials) -> None:
+        """Second refresh within REFRESH_COALESCE_WINDOW returns cached tokens
+        without hitting Intuit — prevents the invalid_grant race when siblings
+        all try to refresh a just-rotated refresh_token.
+        """
+        resp = _mock_response(
+            200,
+            {
+                "access_token": "coalesce_access",
+                "refresh_token": "coalesce_refresh",
+                "expires_in": 3600,
+                "x_refresh_token_expires_in": 8726400,
+            },
+        )
+        cls, client = _mock_client()
+        client.post = AsyncMock(return_value=resp)
+
+        with patch("nectomax_qbo.transport.httpx.AsyncClient", cls):
+            first = await refresh_tokens(creds)
+            # Second call should return cached — no extra HTTP call.
+            second = await refresh_tokens(creds)
+
+        assert first.access_token == "coalesce_access"
+        assert second.access_token == "coalesce_access"
+        # Only one HTTP POST to Intuit, not two.
+        assert client.post.await_count == 1
 
 
 class TestQbRequest:
@@ -139,6 +189,66 @@ class TestQbRequest:
         with patch("nectomax_qbo.transport.httpx.AsyncClient", cls):
             with pytest.raises(QbAuthError, match="401 Unauthorized"):
                 await qb_request(creds, "GET", "query")
+
+    @pytest.mark.asyncio
+    async def test_401_with_callback_refreshes_and_retries(self, creds: QbCredentials) -> None:
+        """When on_auth_refresh is provided, a single 401 triggers refresh +
+        one retry. On success, the callback is invoked with the new tokens."""
+        resp_401 = _mock_response(401)
+        resp_200 = _mock_response(200, {"QueryResponse": {"Account": []}})
+        resp_refresh = _mock_response(
+            200,
+            {
+                "access_token": "fresh_access",
+                "refresh_token": "fresh_refresh",
+                "expires_in": 3600,
+                "x_refresh_token_expires_in": 8726400,
+            },
+        )
+        cls, client = _mock_client()
+        client.request = AsyncMock(side_effect=[resp_401, resp_200])
+        client.post = AsyncMock(return_value=resp_refresh)
+
+        callback_seen: list[object] = []
+
+        async def cb(tokens: object) -> None:
+            callback_seen.append(tokens)
+
+        with patch("nectomax_qbo.transport.httpx.AsyncClient", cls):
+            result = await qb_request(creds, "GET", "query", on_auth_refresh=cb)
+
+        assert result.ok is True
+        assert len(callback_seen) == 1
+        assert callback_seen[0].access_token == "fresh_access"  # type: ignore[attr-defined]
+        assert client.request.await_count == 2  # one 401, one retry
+        assert client.post.await_count == 1  # refresh_tokens hit once
+
+    @pytest.mark.asyncio
+    async def test_401_twice_with_callback_still_raises(self, creds: QbCredentials) -> None:
+        """After the one allowed refresh, a second 401 raises QbAuthError —
+        callback-driven retries don't loop indefinitely."""
+        resp_401 = _mock_response(401)
+        resp_refresh = _mock_response(
+            200,
+            {
+                "access_token": "fresh_access",
+                "refresh_token": "fresh_refresh",
+                "expires_in": 3600,
+                "x_refresh_token_expires_in": 8726400,
+            },
+        )
+        cls, client = _mock_client()
+        client.request = AsyncMock(return_value=resp_401)
+        client.post = AsyncMock(return_value=resp_refresh)
+
+        async def cb(tokens: object) -> None:
+            pass
+
+        with patch("nectomax_qbo.transport.httpx.AsyncClient", cls):
+            with pytest.raises(QbAuthError, match="401 Unauthorized"):
+                await qb_request(creds, "GET", "query", on_auth_refresh=cb)
+
+        assert client.request.await_count == 2  # bounded retry
 
     @pytest.mark.asyncio
     async def test_429_retries_with_backoff(self, creds: QbCredentials) -> None:

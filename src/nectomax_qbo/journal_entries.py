@@ -81,13 +81,15 @@ def build_wc_je(
     # Debit: Accounts Receivable
     ar_ref = config.ar_receivable
     if ar_ref:
-        lines.append(_line(
-            f"{memo} | AR",
-            abs(total),
-            "Debit" if total > 0 else "Credit",
-            ar_ref,
-            entity_ref=customer_ref,
-        ))
+        lines.append(
+            _line(
+                f"{memo} | AR",
+                abs(total),
+                "Debit" if total > 0 else "Credit",
+                ar_ref,
+                entity_ref=customer_ref,
+            )
+        )
 
     # Credit: Revenue lines
     for rev in revenue_lines:
@@ -98,22 +100,26 @@ def build_wc_je(
         acct = getattr(config, role, None)
         if acct is None:
             continue
-        lines.append(_line(
-            f"{memo} | {acct.name}",
-            abs(amount),
-            "Credit" if total > 0 else "Debit",
-            acct,
-            class_ref=class_ref,
-        ))
+        lines.append(
+            _line(
+                f"{memo} | {acct.name}",
+                abs(amount),
+                "Credit" if total > 0 else "Debit",
+                acct,
+                class_ref=class_ref,
+            )
+        )
 
     # Credit: Tax
     if tax != 0 and config.deferred_sales_tax:
-        lines.append(_line(
-            f"{memo} | Tax",
-            abs(tax),
-            "Credit" if tax > 0 else "Debit",
-            config.deferred_sales_tax,
-        ))
+        lines.append(
+            _line(
+                f"{memo} | Tax",
+                abs(tax),
+                "Credit" if tax > 0 else "Debit",
+                config.deferred_sales_tax,
+            )
+        )
 
     return {
         "DocNumber": doc_number,
@@ -157,38 +163,46 @@ def build_pay_je(
         # Flip for negative invoices (credits/refunds)
         if total < 0:
             posting = "Credit" if posting == "Debit" else "Debit"
-        lines.append(_line(
-            f"{memo} | {cr_line.description}",
-            cr_line.amount,
-            posting,
-            cr_line.account_ref,
-        ))
+        lines.append(
+            _line(
+                f"{memo} | {cr_line.description}",
+                cr_line.amount,
+                posting,
+                cr_line.account_ref,
+            )
+        )
 
     # Credit: A/R clearing
     ar_ref = config.ar_receivable
     if ar_ref:
-        lines.append(_line(
-            f"{memo} | AR clear",
-            abs(total),
-            "Credit" if total > 0 else "Debit",
-            ar_ref,
-            entity_ref=customer_ref,
-        ))
+        lines.append(
+            _line(
+                f"{memo} | AR clear",
+                abs(total),
+                "Credit" if total > 0 else "Debit",
+                ar_ref,
+                entity_ref=customer_ref,
+            )
+        )
 
     # Tax: reverse deferred, recognize as payable
     if tax != 0 and config.deferred_sales_tax and config.sales_tax_payable:
-        lines.append(_line(
-            f"{memo} | Deferred tax",
-            abs(tax),
-            "Debit",
-            config.deferred_sales_tax,
-        ))
-        lines.append(_line(
-            f"{memo} | Tax to pay",
-            abs(tax),
-            "Credit",
-            config.sales_tax_payable,
-        ))
+        lines.append(
+            _line(
+                f"{memo} | Deferred tax",
+                abs(tax),
+                "Debit",
+                config.deferred_sales_tax,
+            )
+        )
+        lines.append(
+            _line(
+                f"{memo} | Tax to pay",
+                abs(tax),
+                "Credit",
+                config.sales_tax_payable,
+            )
+        )
 
     return {
         "DocNumber": doc_number,
@@ -224,21 +238,25 @@ def build_batch_je(
 
     # Debit: Checking account
     if config.checking_account:
-        lines.append(_line(
-            f"Auth.net Batch {batch_id} | {payment_method}",
-            net_amount,
-            "Debit",
-            config.checking_account,
-        ))
+        lines.append(
+            _line(
+                f"Auth.net Batch {batch_id} | {payment_method}",
+                net_amount,
+                "Debit",
+                config.checking_account,
+            )
+        )
 
     # Credit: Payments to deposit
     if config.payments_to_deposit:
-        lines.append(_line(
-            f"Auth.net Batch {batch_id} | {payment_method}",
-            net_amount,
-            "Credit",
-            config.payments_to_deposit,
-        ))
+        lines.append(
+            _line(
+                f"Auth.net Batch {batch_id} | {payment_method}",
+                net_amount,
+                "Credit",
+                config.payments_to_deposit,
+            )
+        )
 
     return {
         "DocNumber": doc_number,

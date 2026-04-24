@@ -13,8 +13,8 @@ from pathlib import Path
 import pytest
 
 from nectomax_qbo.accounts import AccountCache
-from nectomax_qbo.doc_numbers import format_doc_number, query_qbo_max_doc_number
-from nectomax_qbo.transport import QbAuthError, qb_query, refresh_tokens
+from nectomax_qbo.doc_numbers import query_qbo_max_doc_number
+from nectomax_qbo.transport import qb_query, refresh_tokens
 from nectomax_qbo.types import QbCredentials, QbEnvironment
 
 # Load .env manually (no dotenv dependency)

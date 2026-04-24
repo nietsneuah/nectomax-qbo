@@ -45,21 +45,25 @@ def route_cash_payment(
     """
     if not payment_links:
         return CashRoutingResult(
-            lines=[CashRoutingLine(
-                description="Payment",
-                amount=_round(abs(invoice_amount)),
-                account_ref=payments_to_deposit_ref,
-            )],
+            lines=[
+                CashRoutingLine(
+                    description="Payment",
+                    amount=_round(abs(invoice_amount)),
+                    account_ref=payments_to_deposit_ref,
+                )
+            ],
         )
 
     # Case 0: No petty cash account
     if petty_cash_ref is None:
         return CashRoutingResult(
-            lines=[CashRoutingLine(
-                description="Payment (no petty cash account)",
-                amount=_round(abs(invoice_amount)),
-                account_ref=payments_to_deposit_ref,
-            )],
+            lines=[
+                CashRoutingLine(
+                    description="Payment (no petty cash account)",
+                    amount=_round(abs(invoice_amount)),
+                    account_ref=payments_to_deposit_ref,
+                )
+            ],
             warning={"reason": "Petty Cash account not configured, routing all to PTD"},
         )
 
@@ -77,35 +81,47 @@ def route_cash_payment(
 
     # Case F: Mixed +/- adjustments
     if neg_adj_total < 0 and pos_adj_total > 0:
-        return _fallback(invoice_amount, payments_to_deposit_ref,
-                         "Mixed positive and negative adjustments")
+        return _fallback(
+            invoice_amount, payments_to_deposit_ref, "Mixed positive and negative adjustments"
+        )
 
     # Case E: Large positive adjustment
     if pos_adj_total > SMALL_ADJUSTMENT_CEILING:
-        return _fallback(invoice_amount, payments_to_deposit_ref,
-                         f"Positive adjustment ${pos_adj_total:.2f} "
-                         f"exceeds ${SMALL_ADJUSTMENT_CEILING:.2f} ceiling")
+        return _fallback(
+            invoice_amount,
+            payments_to_deposit_ref,
+            f"Positive adjustment ${pos_adj_total:.2f} "
+            f"exceeds ${SMALL_ADJUSTMENT_CEILING:.2f} ceiling",
+        )
 
     payment_types = [t for t in type_totals if t not in ("NONE", "Adjustment")]
 
     # Case C: Multiple payment types + negative adjustment
     if len(payment_types) > 1 and neg_adj_total < 0:
-        return _fallback(invoice_amount, payments_to_deposit_ref,
-                         "Multiple payment types with negative adjustment")
+        return _fallback(
+            invoice_amount,
+            payments_to_deposit_ref,
+            "Multiple payment types with negative adjustment",
+        )
 
     # Case B: Single type + negative adjustment → net
     if len(payment_types) == 1 and neg_adj_total < 0:
         ptype = payment_types[0]
         net = _round(type_totals[ptype] + neg_adj_total)
         if net <= 0:
-            return _fallback(invoice_amount, payments_to_deposit_ref,
-                             f"Net after adjustment is ${net:.2f}")
+            return _fallback(
+                invoice_amount, payments_to_deposit_ref, f"Net after adjustment is ${net:.2f}"
+            )
         ref = petty_cash_ref if ptype == "Cash" else payments_to_deposit_ref
         desc = "Cash at plant → Petty Cash" if ptype == "Cash" else "Payment"
         return CashRoutingResult(
-            lines=[CashRoutingLine(
-                description=desc, amount=_round(abs(invoice_amount)), account_ref=ref,
-            )],
+            lines=[
+                CashRoutingLine(
+                    description=desc,
+                    amount=_round(abs(invoice_amount)),
+                    account_ref=ref,
+                )
+            ],
         )
 
     # Case D: Small positive adjustment → inflate PTD bucket
@@ -120,21 +136,25 @@ def route_cash_payment(
     # Case A: Pure Cash
     if cash_total > 0 and other_total == 0:
         return CashRoutingResult(
-            lines=[CashRoutingLine(
-                description="Cash at plant → Petty Cash",
-                amount=_round(abs(invoice_amount)),
-                account_ref=petty_cash_ref,
-            )],
+            lines=[
+                CashRoutingLine(
+                    description="Cash at plant → Petty Cash",
+                    amount=_round(abs(invoice_amount)),
+                    account_ref=petty_cash_ref,
+                )
+            ],
         )
 
     # Case A2: Pure non-Cash
     if cash_total == 0 and other_total > 0:
         return CashRoutingResult(
-            lines=[CashRoutingLine(
-                description="Payment",
-                amount=_round(abs(invoice_amount)),
-                account_ref=payments_to_deposit_ref,
-            )],
+            lines=[
+                CashRoutingLine(
+                    description="Payment",
+                    amount=_round(abs(invoice_amount)),
+                    account_ref=payments_to_deposit_ref,
+                )
+            ],
         )
 
     # Mixed Cash + Other → two lines
@@ -164,10 +184,12 @@ def _fallback(
     reason: str,
 ) -> CashRoutingResult:
     return CashRoutingResult(
-        lines=[CashRoutingLine(
-            description="Payment (fallback)",
-            amount=_round(abs(invoice_amount)),
-            account_ref=ptd_ref,
-        )],
+        lines=[
+            CashRoutingLine(
+                description="Payment (fallback)",
+                amount=_round(abs(invoice_amount)),
+                account_ref=ptd_ref,
+            )
+        ],
         warning={"reason": reason},
     )
