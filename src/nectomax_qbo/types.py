@@ -1,8 +1,16 @@
-"""Shared types and dataclasses for nectomax-qbo."""
+"""Shared types and dataclasses — pure QBO dialect primitives.
+
+Scope: only types whose shape is dictated by the QBO REST API itself
+(credentials, tokens, environment, response envelope, account refs).
+
+Industry-specific types (cleaner-industry tenant config, cash routing
+results, JE category labels) live in ``translators.filemaker`` — they
+belong to the translator that uses them, not the core library.
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 
 
@@ -13,7 +21,7 @@ class QbEnvironment(StrEnum):
 
 @dataclass(frozen=True)
 class QbCredentials:
-    """QuickBooks OAuth2 credentials. Passed in by the orchestrator."""
+    """QuickBooks OAuth2 credentials. Passed in by the caller."""
 
     client_id: str
     client_secret: str
@@ -49,65 +57,3 @@ class AccountRef:
 
     value: str
     name: str
-
-
-@dataclass(frozen=True)
-class CashRoutingLine:
-    """A single line in a cash routing result."""
-
-    description: str
-    amount: float
-    account_ref: AccountRef
-    posting_type: str = "Debit"
-
-
-@dataclass
-class CashRoutingResult:
-    """Result of cash routing decision."""
-
-    lines: list[CashRoutingLine] = field(default_factory=list)
-    warning: dict | None = None
-
-
-class JeType(StrEnum):
-    WC = "WC"
-    PAY = "PAY"
-    BATCH = "BATCH"
-    RJE = "RJE"
-
-
-@dataclass
-class TenantQbConfig:
-    """Maps abstract accounting roles to QBO account/class/customer IDs.
-
-    The orchestrator loads this from tenant_qb_config and passes it in.
-    The library never loads config from a database.
-    """
-
-    realm_id: str
-    doc_number_prefix: str = "WS"
-
-    # Account roles → AccountRef
-    ar_receivable: AccountRef | None = None
-    payments_to_deposit: AccountRef | None = None
-    carpet_revenue: AccountRef | None = None
-    rug_cleaning_revenue: AccountRef | None = None
-    treatment_revenue: AccountRef | None = None
-    product_sales_revenue: AccountRef | None = None
-    misc_revenue: AccountRef | None = None
-    storage_revenue: AccountRef | None = None
-    rug_sales_revenue: AccountRef | None = None
-    discounts_refunds: AccountRef | None = None
-    deferred_sales_tax: AccountRef | None = None
-    sales_tax_payable: AccountRef | None = None
-    checking_account: AccountRef | None = None
-    petty_cash_carpet: AccountRef | None = None
-    petty_cash_rug: AccountRef | None = None
-
-    # Class roles → AccountRef
-    class_plant: AccountRef | None = None
-    class_on_location: AccountRef | None = None
-
-    # Customer roles → AccountRef
-    customer_rug_sales: AccountRef | None = None
-    customer_carpet_sales: AccountRef | None = None

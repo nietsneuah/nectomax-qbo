@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .transport import qb_query
-from .types import AccountRef, QbCredentials, TenantQbConfig
+from .types import AccountRef, QbCredentials
 
 
 class AccountNotFoundError(Exception):
@@ -58,14 +58,3 @@ class AccountCache:
         ref = AccountRef(value=results[0]["Id"], name=results[0]["Name"])
         self._cache[key] = ref
         return ref
-
-    async def resolve_tenant_config(self, config: TenantQbConfig) -> TenantQbConfig:
-        """Resolve all account names in a TenantQbConfig to QBO IDs.
-
-        This is a convenience for the orchestrator to call once at sync start.
-        Accounts that are None in the config are skipped.
-        """
-        # This method would populate AccountRefs from QBO lookups.
-        # For Phase 6.0, config is pre-populated by the orchestrator.
-        # This is a placeholder for future auto-resolution.
-        return config
