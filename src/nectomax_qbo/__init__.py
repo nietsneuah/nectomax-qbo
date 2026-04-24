@@ -1,12 +1,26 @@
-"""nectomax-qbo — QuickBooks Online dialect library for NectoMax."""
+"""nectomax-qbo — QuickBooks Online dialect library for NectoMax.
 
-__version__ = "0.1.0"
+Public surface is the pure QBO dialect: transport, REST primitives,
+account resolution, doc-number helpers, generic payment builder.
+
+Source-specific translators (Authnet → QBO, FileMaker → QBO, …) live
+under ``nectomax_qbo.translators.*`` and are imported by their full
+path. They are NOT re-exported from this package root — per convention
+each translator's namespace is explicit at the call site:
+
+    from nectomax_qbo.translators.authnet import build_batch_je
+    from nectomax_qbo.translators.filemaker import (
+        CleanerTenantQbConfig,
+        build_wc_je,
+        route_cash_payment,
+    )
+"""
+
+__version__ = "0.3.0"
 
 from .accounts import AccountCache, AccountNotFoundError
 from .api import CreateResult, create_journal_entry, create_payment
-from .cash_routing import PaymentLink, route_cash_payment
 from .doc_numbers import format_doc_number, parse_doc_number, reserve_next_doc_number
-from .journal_entries import build_batch_je, build_pay_je, build_wc_je
 from .payments import build_payment
 from .transport import (
     QbApiError,
@@ -19,23 +33,17 @@ from .transport import (
 )
 from .types import (
     AccountRef,
-    CashRoutingLine,
-    CashRoutingResult,
     QbCredentials,
     QbEnvironment,
     QbResponse,
     QbTokens,
-    TenantQbConfig,
 )
 
 __all__ = [
     "AccountCache",
     "AccountNotFoundError",
     "AccountRef",
-    "CashRoutingLine",
-    "CashRoutingResult",
     "CreateResult",
-    "PaymentLink",
     "QbApiError",
     "QbAuthError",
     "QbCredentials",
@@ -43,11 +51,7 @@ __all__ = [
     "QbResponse",
     "QbTokens",
     "RefreshCallback",
-    "TenantQbConfig",
-    "build_batch_je",
-    "build_pay_je",
     "build_payment",
-    "build_wc_je",
     "create_journal_entry",
     "create_payment",
     "format_doc_number",
@@ -57,5 +61,4 @@ __all__ = [
     "qb_request",
     "refresh_tokens",
     "reserve_next_doc_number",
-    "route_cash_payment",
 ]

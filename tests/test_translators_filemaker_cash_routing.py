@@ -1,8 +1,8 @@
-"""Tests for cash_routing module — all 6 cases plus edge cases."""
+"""Tests for translators.filemaker.route_cash_payment — all 6 cases plus edge cases."""
 
 from __future__ import annotations
 
-from nectomax_qbo.cash_routing import PaymentLink, route_cash_payment
+from nectomax_qbo.translators.filemaker import PaymentLink, route_cash_payment
 from nectomax_qbo.types import AccountRef
 
 PETTY_CASH = AccountRef(value="100", name="Petty Cash (Carpet)")
