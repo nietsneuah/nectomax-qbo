@@ -53,7 +53,7 @@ class AccountCache:
         )
 
         if not results:
-            raise AccountNotFoundError(f"{entity} not found: \"{name}\"")
+            raise AccountNotFoundError(f'{entity} not found: "{name}"')
 
         ref = AccountRef(value=results[0]["Id"], name=results[0]["Name"])
         self._cache[key] = ref

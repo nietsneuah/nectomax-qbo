@@ -8,7 +8,15 @@ from .cash_routing import PaymentLink, route_cash_payment
 from .doc_numbers import format_doc_number, parse_doc_number, reserve_next_doc_number
 from .journal_entries import build_batch_je, build_pay_je, build_wc_je
 from .payments import build_payment
-from .transport import QbApiError, QbAuthError, qb_create, qb_query, qb_request, refresh_tokens
+from .transport import (
+    QbApiError,
+    QbAuthError,
+    RefreshCallback,
+    qb_create,
+    qb_query,
+    qb_request,
+    refresh_tokens,
+)
 from .types import (
     AccountRef,
     CashRoutingLine,
@@ -34,6 +42,7 @@ __all__ = [
     "QbEnvironment",
     "QbResponse",
     "QbTokens",
+    "RefreshCallback",
     "TenantQbConfig",
     "build_batch_je",
     "build_pay_je",

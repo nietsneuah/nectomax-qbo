@@ -13,8 +13,12 @@ from nectomax_qbo.types import QbCredentials, QbEnvironment
 @pytest.fixture
 def creds() -> QbCredentials:
     return QbCredentials(
-        client_id="c", client_secret="s", access_token="a",
-        refresh_token="r", realm_id="123", environment=QbEnvironment.SANDBOX,
+        client_id="c",
+        client_secret="s",
+        access_token="a",
+        refresh_token="r",
+        realm_id="123",
+        environment=QbEnvironment.SANDBOX,
     )
 
 

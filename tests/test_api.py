@@ -13,8 +13,12 @@ from nectomax_qbo.types import QbCredentials, QbEnvironment, QbResponse
 @pytest.fixture
 def creds() -> QbCredentials:
     return QbCredentials(
-        client_id="c", client_secret="s", access_token="a",
-        refresh_token="r", realm_id="123", environment=QbEnvironment.SANDBOX,
+        client_id="c",
+        client_secret="s",
+        access_token="a",
+        refresh_token="r",
+        realm_id="123",
+        environment=QbEnvironment.SANDBOX,
     )
 
 
@@ -55,7 +59,8 @@ class TestCreateJournalEntry:
 
         with patch("nectomax_qbo.api.qb_create", new_callable=AsyncMock) as mock_create:
             result = await create_journal_entry(
-                creds, JE_BODY,
+                creds,
+                JE_BODY,
                 idempotency_key="test-key",
                 dedupe_callback=callback,
             )
@@ -80,7 +85,8 @@ class TestCreateJournalEntry:
                 data={"JournalEntry": {"Id": "99"}},
             )
             result = await create_journal_entry(
-                creds, JE_BODY,
+                creds,
+                JE_BODY,
                 idempotency_key="test-key",
                 dedupe_callback=callback,
             )
@@ -96,10 +102,13 @@ class TestCreateJournalEntry:
     async def test_no_callback_skips_idempotency(self, creds: QbCredentials) -> None:
         with patch("nectomax_qbo.api.qb_create", new_callable=AsyncMock) as mock_create:
             mock_create.return_value = QbResponse(
-                ok=True, data={"JournalEntry": {"Id": "1"}},
+                ok=True,
+                data={"JournalEntry": {"Id": "1"}},
             )
             result = await create_journal_entry(
-                creds, JE_BODY, idempotency_key="key",
+                creds,
+                JE_BODY,
+                idempotency_key="key",
             )
 
         assert result.ok is True
@@ -126,7 +135,8 @@ class TestCreatePayment:
 
         with patch("nectomax_qbo.api.qb_create", new_callable=AsyncMock) as mock_create:
             result = await create_payment(
-                creds, PAYMENT_BODY,
+                creds,
+                PAYMENT_BODY,
                 idempotency_key="pay-key",
                 dedupe_callback=callback,
             )

@@ -118,9 +118,7 @@ class TestBuildWcJe:
 
 class TestBuildPayJe:
     def test_carpet_pay(self) -> None:
-        routing = CashRoutingResult(
-            lines=[CashRoutingLine("Payment", 250.0, PTD)]
-        )
+        routing = CashRoutingResult(lines=[CashRoutingLine("Payment", 250.0, PTD)])
         je = build_pay_je(
             order_id="C-5920",
             customer_name="John Doe",

@@ -4,11 +4,21 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import dataclasses
+import time
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import httpx
 
 from .types import QbCredentials, QbEnvironment, QbResponse, QbTokens
+
+# Callback invoked with the fresh QbTokens after a successful 401-driven refresh.
+# Implementations should persist the new access_token + refresh_token back to
+# whatever credential store the caller uses (e.g., Supabase Vault). Called at
+# most once per qb_request invocation — if the second request also returns
+# 401, we give up.
+RefreshCallback = Callable[[QbTokens], Awaitable[None]]
 
 TOKEN_URL = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer"
 
@@ -19,6 +29,41 @@ BASE_URLS: dict[QbEnvironment, str] = {
 
 DEFAULT_MINOR_VERSION = 73
 MAX_RETRIES = 3
+
+# Per-credential-chain refresh serialization.
+#
+# Intuit rotates the refresh_token on every successful refresh — the OLD
+# refresh_token becomes invalid immediately. Concurrent refresh_tokens()
+# calls for the same credential chain create a race: whichever hits Intuit
+# second presents a now-invalidated refresh_token and gets `invalid_grant`,
+# which looks to the caller like "user must re-auth" when in fact a sibling
+# request already refreshed successfully.
+#
+# Keyed by (client_id, realm_id) — unique per credential chain (one Intuit
+# app against one QB company). Locks are created lazily and persist for
+# the process lifetime. This is coordination primitive state, not business
+# state.
+_refresh_locks: dict[tuple[str, str], asyncio.Lock] = {}
+_refresh_locks_guard = asyncio.Lock()
+
+# Short-lived in-memory cache of the most-recent refresh result per credential
+# chain. When a sibling request arrives within REFRESH_COALESCE_WINDOW seconds
+# of a successful refresh, we return the cached result instead of re-refreshing
+# (the stale refresh_token it holds would fail with invalid_grant). Cache key
+# matches the lock key.
+REFRESH_COALESCE_WINDOW = 30.0  # seconds
+_recent_refreshes: dict[tuple[str, str], tuple[float, QbTokens]] = {}
+
+
+async def _get_refresh_lock(credentials: QbCredentials) -> asyncio.Lock:
+    """Return the per-credential-chain refresh lock, creating it on first use."""
+    key = (credentials.client_id, credentials.realm_id)
+    async with _refresh_locks_guard:
+        lock = _refresh_locks.get(key)
+        if lock is None:
+            lock = asyncio.Lock()
+            _refresh_locks[key] = lock
+        return lock
 
 
 class QbAuthError(Exception):
@@ -35,33 +80,53 @@ class QbApiError(Exception):
 
 
 async def refresh_tokens(credentials: QbCredentials) -> QbTokens:
-    """Refresh OAuth2 tokens. Intuit issues a NEW refresh token each time."""
-    auth_bytes = f"{credentials.client_id}:{credentials.client_secret}".encode()
-    auth_header = base64.b64encode(auth_bytes).decode()
+    """Refresh OAuth2 tokens. Intuit issues a NEW refresh token each time.
 
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            TOKEN_URL,
-            headers={
-                "Authorization": f"Basic {auth_header}",
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-            data={
-                "grant_type": "refresh_token",
-                "refresh_token": credentials.refresh_token,
-            },
+    Concurrency-safe: serialized per credential chain, and coalesces siblings
+    that arrive within REFRESH_COALESCE_WINDOW of a successful refresh
+    (returning the cached fresh tokens rather than sending their stale
+    refresh_token to Intuit and getting `invalid_grant`). See module docstrings
+    on `_refresh_locks` and `_recent_refreshes`.
+    """
+    key = (credentials.client_id, credentials.realm_id)
+    lock = await _get_refresh_lock(credentials)
+    async with lock:
+        # Coalesce: if another caller just refreshed this chain, return theirs.
+        recent = _recent_refreshes.get(key)
+        if recent is not None:
+            age, cached = recent
+            if time.monotonic() - age < REFRESH_COALESCE_WINDOW:
+                return cached
+
+        auth_bytes = f"{credentials.client_id}:{credentials.client_secret}".encode()
+        auth_header = base64.b64encode(auth_bytes).decode()
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                TOKEN_URL,
+                headers={
+                    "Authorization": f"Basic {auth_header}",
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                data={
+                    "grant_type": "refresh_token",
+                    "refresh_token": credentials.refresh_token,
+                },
+            )
+
+        if resp.status_code != 200:
+            raise QbAuthError(f"Token refresh failed: {resp.status_code} — {resp.text[:300]}")
+
+        data = resp.json()
+        tokens = QbTokens(
+            access_token=data["access_token"],
+            refresh_token=data["refresh_token"],
+            expires_in=data.get("expires_in", 3600),
+            x_refresh_token_expires_in=data.get("x_refresh_token_expires_in", 8726400),
         )
-
-    if resp.status_code != 200:
-        raise QbAuthError(f"Token refresh failed: {resp.status_code} — {resp.text[:300]}")
-
-    data = resp.json()
-    return QbTokens(
-        access_token=data["access_token"],
-        refresh_token=data["refresh_token"],
-        expires_in=data.get("expires_in", 3600),
-        x_refresh_token_expires_in=data.get("x_refresh_token_expires_in", 8726400),
-    )
+        # Cache for siblings arriving within the coalesce window.
+        _recent_refreshes[key] = (time.monotonic(), tokens)
+        return tokens
 
 
 def _base_url(credentials: QbCredentials) -> str:
@@ -94,13 +159,23 @@ async def qb_request(
     params: dict[str, str] | None = None,
     minor_version: int = DEFAULT_MINOR_VERSION,
     max_retries: int = MAX_RETRIES,
+    on_auth_refresh: RefreshCallback | None = None,
 ) -> QbResponse:
-    """Make an authenticated QBO API request with retry on 429/610."""
+    """Make an authenticated QBO API request with retry on 429/610.
+
+    If `on_auth_refresh` is provided, also retries ONCE on 401: calls
+    refresh_tokens(), invokes the callback so the caller can persist the
+    rotated tokens, and retries the request with the fresh access_token.
+    On a second 401 (after the one retry), raises QbAuthError. With no
+    callback provided, any 401 raises QbAuthError immediately (previous behavior).
+    """
     url = _api_url(credentials, endpoint, minor_version)
 
     if params:
         param_str = "&".join(f"{k}={v}" for k, v in params.items())
         url = f"{url}&{param_str}"
+
+    refreshed_once = False
 
     for attempt in range(max_retries + 1):
         async with httpx.AsyncClient() as client:
@@ -112,8 +187,18 @@ async def qb_request(
                 timeout=30.0,
             )
 
-        # 401 — not retriable
+        # 401 — refresh once if a callback is provided, else raise
         if resp.status_code == 401:
+            if on_auth_refresh is not None and not refreshed_once:
+                new_tokens = await refresh_tokens(credentials)
+                credentials = dataclasses.replace(
+                    credentials,
+                    access_token=new_tokens.access_token,
+                    refresh_token=new_tokens.refresh_token,
+                )
+                await on_auth_refresh(new_tokens)
+                refreshed_once = True
+                continue
             raise QbAuthError(
                 f"401 Unauthorized from QBO. Token prefix: {credentials.access_token[:12]}..."
             )
