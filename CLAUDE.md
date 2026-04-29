@@ -20,16 +20,35 @@ This is NOT a product, service, or adapter. It has no HTTP server, no CLI, no aw
 ```
 src/nectomax_qbo/
 ├── __init__.py
-├── transport.py      — OAuth2 client, token refresh, authenticated requests
-├── accounts.py       — Account name → QBO ID resolution via TenantQbConfig
-├── doc_numbers.py    — WS-NNNNN sequence with self-healing
-├── journal_entries.py — WC + PAY JE builders (pure functions)
-├── payments.py       — Payment application builders
-├── cash_routing.py   — Payment method → deposit account mapping
-└── api.py            — High-level compose module
+├── transport.py            — OAuth2 client, token refresh, authenticated requests
+├── types.py                — Shared dataclasses (AccountRef, etc.)
+├── accounts.py             — Account name → QBO ID resolution via TenantQbConfig
+├── doc_numbers.py          — WS-NNNNN sequence with self-healing
+├── payments.py             — Payment application builders
+├── api.py                  — High-level compose module
+└── translators/
+    ├── __init__.py
+    ├── _shared.py          — Internal line-building primitives
+    ├── authnet.py          — Auth.net → QBO JE translator (pure functions)
+    └── filemaker.py        — FileMaker → QBO JE translator (pure functions)
 tests/
 docs/
 ```
+
+## Naming convention (D-018, DECIDED 2026-04-24)
+
+All new translators follow this rule. Full text in `nectomax-platform/docs/architecture/DECISIONS.md` D-018.
+
+**Module path:** `nectomax.<target>.translators.<source>` — three segments. Examples:
+- `nectomax_qbo.translators.authnet` (Auth.net → QBO)
+- `nectomax_qbo.translators.filemaker` (FileMaker → QBO)
+- Future: `nectomax_qbo.translators.shopify`, `nectomax_qbo.translators.stripe`
+
+**Shape:** Translators are pure functions taking source-shape input + a `<Industry>Tenant<Svc>Config` dataclass param (e.g., `CleanerTenantQbConfig`). They return target-shape payloads. **No** Supabase imports, **no** orchestrator imports, **no** HTTP clients.
+
+**Tenant stays as data, never as a module path segment.** Tenant-specific behavior (account mappings, doc-number prefix, cash routing overrides) lives in DB rows loaded by the orchestrator and passed to translators as the config dataclass. Do not create `nectomax_qbo.translators.widmers` — config is the tenant axis.
+
+**Composition over inheritance.** No base classes for translators. Each translator file is self-contained. YAGNI on hierarchies until N≥2 surfaces real duplication that composition can't solve.
 
 ## Conventions
 
