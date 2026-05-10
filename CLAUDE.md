@@ -37,7 +37,7 @@ docs/
 
 ## Naming convention (D-018, DECIDED 2026-04-24)
 
-All new translators follow this rule. Full text in `nectomax-platform/docs/architecture/DECISIONS.md` D-018.
+All new translators follow this rule. Full text in `nectomax-docs/architecture/DECISIONS.md` D-018.
 
 **Module path:** `nectomax.<target>.translators.<source>` — three segments. Examples:
 - `nectomax_qbo.translators.authnet` (Auth.net → QBO)
